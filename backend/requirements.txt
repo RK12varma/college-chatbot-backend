@@ -1,0 +1,14 @@
+pdfplumber
+python-docx
+faiss-cpu
+sentence-transformers
+lxml
+numpy
+
+
+
+
+
+
+
+AIzaSyAWCPz6VR_4sqVCLTLCt56kIdEVw2SaKG8
