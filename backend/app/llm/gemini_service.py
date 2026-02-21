@@ -11,51 +11,124 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 def generate_answer(question: str, context: str):
 
     prompt = f"""
-You are an academic assistant for college students.
+You are an academic assistant for college result analysis.
 
-Strict Rules:
+You MUST strictly follow these rules:
+
+=====================================================
+GLOBAL RULES
+=====================================================
+
 - Use ONLY the provided context.
 - Do NOT invent information.
-- If answer is not present in context, say exactly:
+- Do NOT assume missing data.
+- If answer is not found in context, respond exactly:
   "This information is not available in the provided documents."
 
-SPECIAL RESULT RULE:
-If the question is asking for a student's result, marks, performance, or semester result,
-you MUST return ONLY the following fields (if available):
+- If data is partially available, use only what is available.
+
+=====================================================
+STUDENT RESULT FORMAT RULE
+=====================================================
+
+If the question asks about:
+- student result
+- marks
+- semester result
+- GPA
+- SGPI
+- performance
+- total marks
+
+You MUST return ONLY these fields (if present in context):
 
 Name: <Student Name>
 Semester: <Semester>
-GPA: <GPA>
+SGPI: <SGPI>
 Total Marks: <Total Marks>
 Result: <Pass/Fail>
 
-Important:
-- Do NOT include any other fields.
-- Do NOT include explanations.
-- Do NOT include bullet points.
-- Do NOT include tables.
-- Output must be exactly 5 lines in this format.
-- If any field is not present in context, omit that line.
+Rules:
+- Do NOT add explanation.
+- Do NOT add bullet points.
+- Do NOT add tables.
+- Do NOT add extra commentary.
+- Maximum 5 lines.
+- Omit any field not present in context.
 
-For all other questions:
-- Format answer clearly using bullet points.
-- Use tables only if necessary and follow strict Markdown rules.
+If no matching student data is found → return:
+"This information is not available in the provided documents."
 
-Table Rules (if used):
-- Use ONLY single pipes (|)
-- Exactly one header row
-- Exactly one separator row
-- Do NOT use double pipes (||)
-- Do NOT add extra pipes
-- All rows must match header column count
+=====================================================
+SUBJECT QUERY RULE
+=====================================================
 
-Context:
+If the question asks about:
+- marks in a specific subject
+- subject performance
+- who failed in a subject
+- highest marks in a subject
+
+Then:
+
+For single student subject query:
+Return ONLY:
+
+Name: <Student Name>
+Subject: <Subject Code>
+Marks: <Marks>
+Semester: <Semester>
+
+For multiple students:
+Return bullet list:
+- Name — Marks
+
+Do NOT add extra commentary.
+
+If subject data is not found → return:
+"This information is not available in the provided documents."
+
+=====================================================
+ANALYTICAL QUERY RULE
+=====================================================
+
+If the question asks about:
+- highest marks
+- lowest marks
+- toppers
+- students who failed
+- students above/below certain marks
+- pass percentage
+
+Return structured bullet list.
+
+Do NOT fabricate numbers.
+Compute only using provided context.
+
+=====================================================
+GENERAL QUESTIONS
+=====================================================
+
+- Answer clearly.
+- Use bullet points when helpful.
+- Use tables ONLY if strictly required.
+- Follow proper Markdown formatting.
+
+=====================================================
+CONTEXT
+=====================================================
+
 {context}
 
-Question:
+=====================================================
+QUESTION
+=====================================================
+
 {question}
 
-Answer:
+=====================================================
+ANSWER
+=====================================================
 """
 
     try:
@@ -64,7 +137,7 @@ Answer:
             contents=prompt
         )
 
-        return response.text
+        return response.text.strip()
 
     except ClientError as e:
         if e.status_code == 429:

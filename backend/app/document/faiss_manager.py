@@ -7,13 +7,27 @@ from app.models.chunk import DocumentChunk
 
 FAISS_INDEX_PATH = "faiss.index"
 dimension = 384
+SIMILARITY_THRESHOLD = 1.05  # 🔥 Safe cosine distance cutoff
 
-# Load embedding model once
+# =====================================================
+# LOAD EMBEDDING MODEL (ONCE)
+# =====================================================
+
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Load or create FAISS index
+# =====================================================
+# LOAD OR CREATE FAISS INDEX
+# =====================================================
+
 if os.path.exists(FAISS_INDEX_PATH):
     index = faiss.read_index(FAISS_INDEX_PATH)
+
+    # Safety dimension check
+    if index.d != dimension:
+        raise ValueError(
+            f"FAISS dimension mismatch. "
+            f"Index: {index.d}, Expected: {dimension}"
+        )
 else:
     base_index = faiss.IndexFlatL2(dimension)
     index = faiss.IndexIDMap(base_index)
@@ -31,6 +45,7 @@ def save_index():
 # =====================================================
 # SEARCH SIMILAR CHUNKS
 # =====================================================
+
 def search_similar_chunks(question: str, db: Session, top_k: int = 5):
     """
     1. Convert question to embedding
@@ -41,17 +56,30 @@ def search_similar_chunks(question: str, db: Session, top_k: int = 5):
     if index.ntotal == 0:
         return []
 
-    # Create query embedding
-    query_vector = model.encode([question])
+    # 🔥 Normalize embeddings (important for cosine-style behavior)
+    query_vector = model.encode(
+        [question],
+        normalize_embeddings=True
+    )
+
     query_vector = np.array(query_vector).astype("float32")
 
-    # Search FAISS
-    distances, ids = index.search(query_vector, top_k)
+    # Search more than needed (for filtering)
+    distances, ids = index.search(query_vector, top_k * 3)
+
+    # 🔥 DEBUG: Print raw FAISS output
+    print("Distances:", distances)
+    print("Indices:", ids)
 
     chunk_texts = []
 
-    for chunk_id in ids[0]:
+    for dist, chunk_id in zip(distances[0], ids[0]):
+
         if chunk_id == -1:
+            continue
+
+        # 🔥 Apply similarity threshold
+        if dist > SIMILARITY_THRESHOLD:
             continue
 
         chunk = db.query(DocumentChunk).filter(
@@ -60,5 +88,11 @@ def search_similar_chunks(question: str, db: Session, top_k: int = 5):
 
         if chunk:
             chunk_texts.append(chunk.chunk_text)
+
+        if len(chunk_texts) >= top_k:
+            break
+
+    # 🔥 DEBUG: Print returned valid IDs (non -1)
+    print("Returned IDs:", [int(i) for i in ids[0] if i != -1])
 
     return chunk_texts
