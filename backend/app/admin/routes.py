@@ -10,12 +10,14 @@ from app.models.chunk import DocumentChunk
 from app.models.scrape_source import ScrapeSource
 from app.admin.scraper import scrape_all_sources
 
+
 router = APIRouter()
 
 
-# -------------------------
+# =====================================================
 # DB Dependency
-# -------------------------
+# =====================================================
+
 def get_db():
     db = SessionLocal()
     try:
@@ -24,17 +26,19 @@ def get_db():
         db.close()
 
 
-# -------------------------
+# =====================================================
 # Request Schemas
-# -------------------------
+# =====================================================
+
 class ScrapeSourceRequest(BaseModel):
     name: str
     url: str
 
 
-# -------------------------
+# =====================================================
 # Stats
-# -------------------------
+# =====================================================
+
 @router.get("/stats")
 def get_stats(
     db: Session = Depends(get_db),
@@ -47,9 +51,10 @@ def get_stats(
     }
 
 
-# -------------------------
+# =====================================================
 # Documents
-# -------------------------
+# =====================================================
+
 @router.get("/documents")
 def list_documents(
     db: Session = Depends(get_db),
@@ -64,6 +69,7 @@ def list_documents(
             "department": doc.department,
             "semester": doc.semester,
             "subject": doc.subject,
+            "is_active": doc.is_active,
         }
         for doc in documents
     ]
@@ -80,6 +86,7 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # delete chunks first
     db.query(DocumentChunk).filter(
         DocumentChunk.document_id == doc_id
     ).delete()
@@ -90,9 +97,10 @@ def delete_document(
     return {"message": "Document deleted successfully"}
 
 
-# -------------------------
+# =====================================================
 # Users
-# -------------------------
+# =====================================================
+
 @router.get("/users")
 def list_users(
     db: Session = Depends(get_db),
@@ -111,37 +119,75 @@ def list_users(
     ]
 
 
-# -------------------------
-# Scrape
-# -------------------------
-@router.post("/scrape")
-def scrape(
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
     db: Session = Depends(get_db),
     user=Depends(admin_required),
 ):
-    from app.admin.scraper import process_pdfs, extract_pdf_links
+    target = db.query(User).filter(User.id == user_id).first()
 
-    sources = db.query(ScrapeSource).all()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    total_found = 0
-    total_processed = 0
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete yourself")
 
-    for source in sources:
-        pdf_links = extract_pdf_links(source.url)
-        total_found += len(pdf_links)
+    db.delete(target)
+    db.commit()
 
-        processed = process_pdfs(pdf_links, db, user.id)
-        total_processed += processed
+    return {"message": "User deleted successfully"}
+
+
+@router.put("/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(admin_required),
+):
+    target = db.query(User).filter(User.id == user_id).first()
+
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="You cannot change your own role")
+
+    # Toggle role
+    target.role = "user" if target.role == "admin" else "admin"
+
+    db.commit()
 
     return {
-        "total_pdfs_found": total_found,
-        "processed": total_processed,
+        "message": "Role updated successfully",
+        "new_role": target.role
     }
 
 
-# -------------------------
-# Sources
-# -------------------------
+# =====================================================
+# Scrape (NEW SMART SCRAPER)
+# =====================================================
+
+@router.post("/scrape")
+def scrape(
+    user=Depends(admin_required),
+):
+    try:
+        scrape_all_sources()
+        return {
+            "message": "Scraping completed successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Scraping failed: {str(e)}"
+        )
+
+
+# =====================================================
+# Scrape Sources
+# =====================================================
+
 @router.post("/sources")
 def add_source(
     request: ScrapeSourceRequest,
@@ -183,50 +229,4 @@ def delete_source(
     db.delete(source)
     db.commit()
 
-    return {"message": "Source deleted"}
-
-@router.delete("/users/{user_id}")
-def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(admin_required),
-):
-    target = db.query(User).filter(User.id == user_id).first()
-
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if target.id == user.id:
-        raise HTTPException(status_code=400, detail="You cannot delete yourself")
-
-    db.delete(target)
-    db.commit()
-
-    return {"message": "User deleted successfully"}
-
-@router.put("/users/{user_id}/role")
-def update_user_role(
-    user_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(admin_required),
-):
-    target = db.query(User).filter(User.id == user_id).first()
-
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if target.id == user.id:
-        raise HTTPException(status_code=400, detail="You cannot change your own role")
-
-    # Toggle role
-    if target.role == "admin":
-        target.role = "user"
-    else:
-        target.role = "admin"
-
-    db.commit()
-
-    return {
-        "message": "Role updated successfully",
-        "new_role": target.role
-    }
+    return {"message": "Source deleted successfully"}

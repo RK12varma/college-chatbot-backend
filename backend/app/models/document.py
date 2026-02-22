@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -20,11 +20,16 @@ class Document(Base):
 
     uploaded_by = Column(Integer, ForeignKey("users.id"))
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-
     file_path = Column(String)
 
-    # 🔥 Relationship to chunks
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 🔥 NEW FIELDS FOR SMART SCRAPER
+    source_url = Column(String, nullable=True)  # original website link
+    last_checked = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+
+    # 🔥 Relationship to chunks (UNCHANGED LOGIC)
     chunks = relationship(
         "DocumentChunk",
         back_populates="document",
