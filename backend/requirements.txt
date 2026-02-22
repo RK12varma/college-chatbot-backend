@@ -1,14 +1,21 @@
-pdfplumber
-python-docx
-faiss-cpu
-sentence-transformers
-lxml
-numpy
+fastapi==0.110.0
+uvicorn==0.29.0
+python-dotenv==1.0.1
+pydantic==2.6.4
 
+python-jose==3.3.0
+passlib[bcrypt]==1.7.4
+sqlalchemy==2.0.29
 
+google-generativeai==0.5.4
 
+faiss-cpu==1.7.4
+numpy==1.26.4
 
+requests==2.31.0
+beautifulsoup4==4.12.3
+python-multipart==0.0.9
 
-
-
-AIzaSyAWCPz6VR_4sqVCLTLCt56kIdEVw2SaKG8
+pytesseract==0.3.10
+pdf2image==1.17.0
+Pillow==10.2.0
