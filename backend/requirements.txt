@@ -1,21 +1,47 @@
-fastapi==0.110.0
-uvicorn==0.29.0
-python-dotenv==1.0.1
-pydantic==2.6.4
+fastapi
+uvicorn[standard]
 
-python-jose==3.3.0
-passlib[bcrypt]==1.7.4
-sqlalchemy==2.0.29
+# Database
+sqlalchemy
+psycopg2-binary
 
-google-generativeai==0.5.4
+# Authentication / Security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
 
-faiss-cpu==1.7.4
-numpy==1.26.4
+# Environment variables
+python-dotenv
 
-requests==2.31.0
-beautifulsoup4==4.12.3
-python-multipart==0.0.9
+# Email
+email-validator
 
-pytesseract==0.3.10
-pdf2image==1.17.0
-Pillow==10.2.0
+# Scheduler
+apscheduler
+
+# Scraping
+requests
+beautifulsoup4
+
+# AI / Embeddings
+sentence-transformers
+faiss-cpu
+numpy
+
+# Google Gemini
+google-genai
+
+# PDF / Document Processing
+pdfplumber
+pytesseract
+pdf2image
+python-docx
+
+# Image processing (required by pdf2image)
+Pillow
+
+# HTML/XML parsing
+lxml
+
+# Optional performance dependency
+scikit-learn
