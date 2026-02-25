@@ -58,7 +58,7 @@ def upload_document(
 
     file_type = file.filename.split(".")[-1].lower()
 
-    # Save document metadata (with defaults)
+    # Save document metadata
     new_doc = Document(
         filename=file.filename,
         file_path=file_path,
@@ -83,28 +83,38 @@ def upload_document(
     # Chunk text
     chunks = chunk_text(text)
 
-    # Generate embeddings
-    embeddings = create_embeddings(chunks)
+    # 🔥 SAFE FALLBACK ADDED
+    if not chunks:
+        print("No structured chunks — saving full text as fallback")
+        chunks = [{
+            "text": text[:1000],
+            "subject_json": None
+        }]
 
-    # Store chunks first (to get DB IDs)
+    # Generate embeddings
+    embeddings = create_embeddings([chunk["text"] for chunk in chunks])
+
     chunk_ids = []
 
-    for i, chunk_text_value in enumerate(chunks):
+    for i, chunk_obj in enumerate(chunks):
+
         db_chunk = DocumentChunk(
             document_id=new_doc.id,
-            chunk_text=chunk_text_value,
+            chunk_text=chunk_obj["text"],
             chunk_index=i,
+            subject_data=chunk_obj["subject_json"],
         )
+
         db.add(db_chunk)
-        db.flush()  # gets ID immediately
+        db.flush()
         chunk_ids.append(db_chunk.id)
 
     db.commit()
 
-    # Save embeddings with explicit IDs
+    # Save to FAISS
     save_to_faiss(embeddings, chunk_ids)
 
-    # Update vector_id field
+    # Update vector_id
     for cid in chunk_ids:
         chunk = db.query(DocumentChunk).get(cid)
         chunk.vector_id = cid

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Text, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSON
 from app.database import Base
 
 
@@ -14,8 +15,8 @@ class DocumentChunk(Base):
 
     vector_id = Column(Integer, unique=True)
 
-    # 🔥 New field for subject-wise data
-    subject_data = Column(Text, nullable=True)  # JSON string
+    # 🔥 Now using native PostgreSQL JSON type
+    subject_data = Column(JSON, nullable=True)
 
     document = relationship(
         "Document",

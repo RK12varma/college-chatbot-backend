@@ -1,6 +1,5 @@
 import re
 import os
-import subprocess
 import pdfplumber
 import pytesseract
 from pdf2image import convert_from_path
@@ -15,25 +14,42 @@ from app.models.chunk import DocumentChunk
 
 
 # =====================================================
-# CONFIGURE EXTERNAL TOOLS (UPDATE PATHS IF NEEDED)
+# CONFIGURE EXTERNAL TOOLS
 # =====================================================
 
 POPPLER_PATH = r"C:\poppler-25.12.0\Library\bin"
 TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-GHOSTSCRIPT_CMD = "gswin64c"  # make sure this works in CMD
 
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 # =====================================================
-# LOAD EMBEDDING MODEL
+# LOAD MODEL
 # =====================================================
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 # =====================================================
-# EXTRACT TEXT (PDF + OCR + Ghostscript)
+# CREATE EMBEDDINGS
+# =====================================================
+
+def create_embeddings(texts):
+
+    if not texts:
+        return []
+
+    embeddings = model.encode(texts)
+    embeddings = np.array(embeddings).astype("float32")
+
+    if embeddings.ndim == 1:
+        embeddings = embeddings.reshape(1, -1)
+
+    return embeddings
+
+
+# =====================================================
+# EXTRACT TEXT
 # =====================================================
 
 def extract_text(file_path, file_type):
@@ -44,60 +60,19 @@ def extract_text(file_path, file_type):
     text = ""
 
     try:
-        # -------------------------------------------------
-        # 1️⃣ Try normal PDF text extraction
-        # -------------------------------------------------
         with pdfplumber.open(file_path) as pdf:
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
 
-        # -------------------------------------------------
-        # 2️⃣ Weak detection → OCR using Poppler + Tesseract
-        # -------------------------------------------------
+        # OCR fallback if extraction too small
         if len(text.strip()) < 200:
-            print("⚠ Weak extraction detected → Running OCR")
-
-            images = convert_from_path(
-                file_path,
-                dpi=300,
-                poppler_path=POPPLER_PATH
-            )
-
+            images = convert_from_path(file_path, dpi=300, poppler_path=POPPLER_PATH)
             ocr_text = ""
             for img in images:
-                ocr_text += pytesseract.image_to_string(
-                    img,
-                    lang="eng"
-                )
-
+                ocr_text += pytesseract.image_to_string(img, lang="eng")
             text = ocr_text
-
-        # -------------------------------------------------
-        # 3️⃣ Still weak → Ghostscript rendering fallback
-        # -------------------------------------------------
-        if len(text.strip()) < 100:
-            print("⚠ OCR weak → Running Ghostscript fallback")
-
-            output_image = "temp_render.png"
-
-            gs_command = [
-                GHOSTSCRIPT_CMD,
-                "-dNOPAUSE",
-                "-dBATCH",
-                "-sDEVICE=png16m",
-                "-r300",
-                f"-sOutputFile={output_image}",
-                file_path
-            ]
-
-            subprocess.run(gs_command, check=True)
-
-            text = pytesseract.image_to_string(output_image)
-
-            if os.path.exists(output_image):
-                os.remove(output_image)
 
         return text
 
@@ -105,10 +80,6 @@ def extract_text(file_path, file_type):
         print("PDF extraction error:", e)
         return ""
 
-
-# =====================================================
-# NON-PDF EXTRACTION
-# =====================================================
 
 def extract_non_pdf(file_path, file_type):
 
@@ -134,201 +105,118 @@ def extract_non_pdf(file_path, file_type):
 
 def detect_document_type(text: str):
 
-    if "MarksO" in text or "-- P" in text or "SGPI" in text:
+    # Detect DS5001 or DS 5001
+    if re.search(r"DS\s*\d{4}", text):
         return "RESULT"
-
-    if "Syllabus" in text or "Course Objectives" in text:
-        return "SYLLABUS"
-
-    if "Event" in text or "Challenge" in text or "Academic Year" in text:
-        return "EVENT"
 
     return "GENERAL"
 
 
 # =====================================================
-# RESULT DOCUMENT CHUNKING
+# FINAL STABLE RESULT EXTRACTION (BLOCK BASED)
 # =====================================================
 
-def chunk_result_document(text):
+def chunk_result_document(text: str):
 
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
-    chunks = []
+    students = []
 
-    semester = "Unknown"
-    sem_match = re.search(r"Semester\s*[- ]?\s*(\w+)", text, re.IGNORECASE)
-    if sem_match:
-        semester = sem_match.group(1)
+    # Split into blocks by seat number
+    blocks = re.split(r'\n(?=DS\s*\d{4})', text)
 
-    for i, line in enumerate(lines):
+    print("Total blocks detected:", len(blocks))
 
-        if "--" in line or re.search(r"\bPass\b|\bFail\b", line, re.IGNORECASE):
+    for block in blocks:
 
-            name = line.split("--")[0].strip()
+        seat_match = re.search(r'(DS\s*\d{4})', block)
+        total_match = re.search(r'\s(\d{3})\s*\n\s*Grade', block)
 
-            result = "Pass"
-            if "FAIL" in line.upper():
-                result = "Fail"
+        # Name appears before result like:
+        # AITLA RAHUL SADANAND -- P
+        name_match = re.search(r'\n([A-Z][A-Z\s]+?)\s*--\s*([PF]{1,2})', block)
 
-            total_marks = "Unknown"
-            sgpi = "Unknown"
-            subjects = {}
+        if not seat_match:
+            continue
 
-            sgpi_match = re.search(r"\b\d+\.\d+\b", line)
-            if sgpi_match:
-                sgpi = sgpi_match.group(0)
+        seat_no = seat_match.group(1).replace(" ", "")
+        total_marks = total_match.group(1) if total_match else "0"
 
-            for j in range(i - 1, max(i - 40, 0), -1):
-                if "MarksO" in lines[j] or "TOTAL" in lines[j].upper():
-                    numbers = re.findall(r"\b\d{2,4}\b", lines[j])
-                    if numbers:
-                        total_marks = numbers[-1]
-                    break
+        if name_match:
+            student_name = name_match.group(1).strip()
+            result_code = name_match.group(2)
+        else:
+            continue
 
-            for j in range(i - 1, max(i - 30, 0), -1):
-                subject_match = re.match(r"([A-Z]{2,6}\d{3,4})", lines[j])
-                if subject_match:
-                    subject_code = subject_match.group(1)
-                    numbers = re.findall(r"\b\d{2,3}\b", lines[j])
-                    if numbers:
-                        subjects[subject_code] = numbers[-1]
+        # Interpret result
+        if result_code == "P":
+            overall_status = "PASS"
+        elif result_code == "F":
+            overall_status = "FAIL"
+        elif result_code == "PF":
+            overall_status = "PASS WITH FAIL"
+        else:
+            overall_status = "UNKNOWN"
 
-            chunk = f"""
-Student Name: {name}
-Semester: {semester}
-Overall Result: {result}
-Total Marks Obtained: {total_marks}
-SGPI: {sgpi}
-
-Subject Performance:
+        structured_text = f"""
+Student Seat No: {seat_no}
+Student Name: {student_name}
+Semester: SEM-V
+Total Marks: {total_marks}
+Overall Result: {overall_status}
 """
 
-            for code, marks in subjects.items():
-                chunk += f"- {code}: {marks} marks\n"
+        students.append({
+            "text": structured_text.strip(),
+            "subject_json": None
+        })
 
-            chunks.append(chunk.strip())
+    print("Total students extracted:", len(students))
 
-    return chunks
+    return students
 
-
-# =====================================================
-# SYLLABUS CHUNKING
-# =====================================================
-
-def chunk_syllabus_document(text):
-
-    sections = re.split(r"\n(?=Unit|Module|Chapter|PO|PSO|CO)", text)
-    return [s.strip() for s in sections if len(s.strip()) > 80]
-
-
-# =====================================================
-# EVENT CHUNKING
-# =====================================================
-
-def chunk_event_document(text):
-
-    sections = re.split(r'\n(?=[A-Z][A-Z\s]{4,})', text)
-
-    chunks = []
-    buffer = ""
-
-    for section in sections:
-        buffer += section.strip() + "\n"
-
-        if len(buffer) > 400:
-            chunks.append(buffer.strip())
-            buffer = ""
-
-    if buffer:
-        chunks.append(buffer.strip())
-
-    return chunks
-
-
-# =====================================================
-# GENERAL CHUNKING
-# =====================================================
-
-def chunk_general_document(text):
-
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
-
-    chunks = []
-    buffer = ""
-
-    for line in lines:
-
-        buffer += line + " "
-
-        if len(buffer) > 400:
-            chunks.append(buffer.strip())
-            buffer = ""
-
-    if buffer:
-        chunks.append(buffer.strip())
-
-    return chunks
-
-
-# =====================================================
-# MASTER CHUNK ROUTER
-# =====================================================
 
 def chunk_text(text):
 
-    doc_type = detect_document_type(text)
-    print("Detected document type:", doc_type)
+    if detect_document_type(text) == "RESULT":
+        return chunk_result_document(text)
 
-    if doc_type == "RESULT":
-        chunks = chunk_result_document(text)
-    elif doc_type == "SYLLABUS":
-        chunks = chunk_syllabus_document(text)
-    elif doc_type == "EVENT":
-        chunks = chunk_event_document(text)
-    else:
-        chunks = chunk_general_document(text)
-
-    print("Chunks created:", len(chunks))
-    return chunks
+    return [{
+        "text": text.strip(),
+        "subject_json": None
+    }]
 
 
 # =====================================================
-# CREATE EMBEDDINGS
+# SAFE FAISS SAVE WITH IDS
 # =====================================================
 
-def create_embeddings(text_chunks):
-
-    embeddings = model.encode(
-        text_chunks,
-        normalize_embeddings=True,
-        batch_size=16,
-        show_progress_bar=False
-    )
-
-    return np.array(embeddings).astype("float32")
-
-
-# =====================================================
-# SAVE TO FAISS
-# =====================================================
-
-def save_to_faiss(embeddings, ids):
+def save_to_faiss(embeddings, chunk_ids):
 
     index = get_index()
-    ids = np.array(ids)
+
+    if embeddings is None or len(embeddings) == 0:
+        print("No embeddings generated. Skipping FAISS.")
+        return
+
+    embeddings = np.array(embeddings).astype("float32")
+
+    if embeddings.ndim == 1:
+        embeddings = embeddings.reshape(1, -1)
 
     if embeddings.shape[1] != index.d:
-        raise ValueError(
-            f"Embedding dimension {embeddings.shape[1]} "
-            f"does not match FAISS dimension {index.d}"
-        )
+        print("Embedding dimension mismatch. Skipping FAISS.")
+        return
+
+    ids = np.array(chunk_ids, dtype=np.int64)
 
     index.add_with_ids(embeddings, ids)
+
     save_index()
+
+    print("FAISS updated successfully with IDs.")
 
 
 # =====================================================
-# FULL PROCESS PIPELINE
+# PROCESS DOCUMENT
 # =====================================================
 
 def process_document(file_path, file_type, document_id):
@@ -339,38 +227,37 @@ def process_document(file_path, file_type, document_id):
         text = extract_text(file_path, file_type)
 
         if not text or len(text.strip()) < 50:
-            return {
-                "status": "error",
-                "message": "Insufficient text extracted"
-            }
+            return {"status": "error", "message": "Insufficient text"}
+
+        doc_type = detect_document_type(text)
+        print("Detected document type:", doc_type)
 
         chunks = chunk_text(text)
 
         if not chunks:
-            return {
-                "status": "error",
-                "message": "No chunks created"
-            }
+            return {"status": "error", "message": "No chunks generated"}
+
+        chunk_texts = [c["text"] for c in chunks]
+
+        embeddings = create_embeddings(chunk_texts)
 
         chunk_ids = []
-        chunk_values = []
 
-        for i, chunk_value in enumerate(chunks):
+        for i, chunk_obj in enumerate(chunks):
+
             db_chunk = DocumentChunk(
                 document_id=document_id,
-                chunk_text=chunk_value,
-                chunk_index=i
+                chunk_text=chunk_obj["text"],
+                chunk_index=i,
+                subject_data=chunk_obj["subject_json"]
             )
 
             db.add(db_chunk)
             db.flush()
-
             chunk_ids.append(db_chunk.id)
-            chunk_values.append(chunk_value)
 
         db.commit()
 
-        embeddings = create_embeddings(chunk_values)
         save_to_faiss(embeddings, chunk_ids)
 
         return {
@@ -380,10 +267,8 @@ def process_document(file_path, file_type, document_id):
 
     except Exception as e:
         db.rollback()
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        print("Processing error:", e)
+        return {"status": "error", "message": str(e)}
 
     finally:
         db.close()

@@ -21,7 +21,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-MAX_WORKERS = 5
+MAX_WORKERS = 3
 MAX_FILE_SIZE_MB = 20
 
 
