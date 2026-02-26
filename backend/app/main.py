@@ -6,18 +6,17 @@ from app.document.routes import router as document_router
 from app.chat.routes import router as chat_router
 from app.auth.dependencies import admin_required, student_required
 from app.admin.routes import router as admin_router
-from app.admin.routes import router as admin_router
 from app.models import scrape_source
 from app.services.scheduler import start_scheduler
 
-# Create tables
+# Create app FIRST
+app = FastAPI()
+
+# Startup event (ONLY ONE)
 @app.on_event("startup")
 def startup_event():
     Base.metadata.create_all(bind=engine)
     start_scheduler()
-
-# Create app ONCE
-app = FastAPI()
 
 # CORS
 app.add_middleware(
@@ -37,23 +36,14 @@ app.include_router(document_router, prefix="/document", tags=["Document"])
 app.include_router(chat_router, prefix="/chat", tags=["Chat"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 
-# Root
 @app.get("/")
 def root():
     return {"message": "AI Academic Backend Running"}
 
-
-# Test routes
 @app.get("/admin-only")
 def admin_test(user=Depends(admin_required)):
     return {"message": f"Welcome Admin {user.email}"}
 
-
 @app.get("/student-only")
 def student_test(user=Depends(student_required)):
     return {"message": f"Welcome Student {user.email}"}
-
-
-@app.on_event("startup")
-def startup_event():
-    start_scheduler()
