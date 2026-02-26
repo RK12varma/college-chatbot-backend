@@ -66,7 +66,7 @@ def extract_text(file_path, file_type):
                 if page_text:
                     text += page_text + "\n"
 
-        # OCR fallback if extraction too small
+        # OCR fallback
         if len(text.strip()) < 200:
             images = convert_from_path(file_path, dpi=300, poppler_path=POPPLER_PATH)
             ocr_text = ""
@@ -105,7 +105,6 @@ def extract_non_pdf(file_path, file_type):
 
 def detect_document_type(text: str):
 
-    # Detect DS5001 or DS 5001
     if re.search(r"DS\s*\d{4}", text):
         return "RESULT"
 
@@ -113,14 +112,22 @@ def detect_document_type(text: str):
 
 
 # =====================================================
-# FINAL STABLE RESULT EXTRACTION (BLOCK BASED)
+# RESULT DOCUMENT EXTRACTION
 # =====================================================
 
 def chunk_result_document(text: str):
 
     students = []
 
-    # Split into blocks by seat number
+    # Detect semester dynamically
+    sem_match = re.search(r"Semester\s+([IVX]+)", text, re.IGNORECASE)
+
+    if sem_match:
+        semester_value = f"SEM-{sem_match.group(1).upper()}"
+    else:
+        semester_value = "UNKNOWN"
+
+    # Split blocks by seat number
     blocks = re.split(r'\n(?=DS\s*\d{4})', text)
 
     print("Total blocks detected:", len(blocks))
@@ -129,9 +136,6 @@ def chunk_result_document(text: str):
 
         seat_match = re.search(r'(DS\s*\d{4})', block)
         total_match = re.search(r'\s(\d{3})\s*\n\s*Grade', block)
-
-        # Name appears before result like:
-        # AITLA RAHUL SADANAND -- P
         name_match = re.search(r'\n([A-Z][A-Z\s]+?)\s*--\s*([PF]{1,2})', block)
 
         if not seat_match:
@@ -140,13 +144,12 @@ def chunk_result_document(text: str):
         seat_no = seat_match.group(1).replace(" ", "")
         total_marks = total_match.group(1) if total_match else "0"
 
-        if name_match:
-            student_name = name_match.group(1).strip()
-            result_code = name_match.group(2)
-        else:
+        if not name_match:
             continue
 
-        # Interpret result
+        student_name = name_match.group(1).strip()
+        result_code = name_match.group(2)
+
         if result_code == "P":
             overall_status = "PASS"
         elif result_code == "F":
@@ -159,7 +162,7 @@ def chunk_result_document(text: str):
         structured_text = f"""
 Student Seat No: {seat_no}
 Student Name: {student_name}
-Semester: SEM-V
+Semester: {semester_value}
 Total Marks: {total_marks}
 Overall Result: {overall_status}
 """
@@ -169,20 +172,54 @@ Overall Result: {overall_status}
             "subject_json": None
         })
 
+    print("Detected semester:", semester_value)
     print("Total students extracted:", len(students))
 
     return students
 
 
+# =====================================================
+# GENERAL DOCUMENT CHUNKING
+# =====================================================
+
+def chunk_general_document(text: str):
+
+    chunk_size = 800
+    overlap = 100
+
+    chunks = []
+    start = 0
+    text_length = len(text)
+
+    while start < text_length:
+
+        end = start + chunk_size
+        chunk = text[start:end]
+
+        chunks.append({
+            "text": chunk.strip(),
+            "subject_json": None
+        })
+
+        start += chunk_size - overlap
+
+    print("General document chunks created:", len(chunks))
+
+    return chunks
+
+
+# =====================================================
+# CHUNK ROUTER
+# =====================================================
+
 def chunk_text(text):
 
-    if detect_document_type(text) == "RESULT":
+    doc_type = detect_document_type(text)
+
+    if doc_type == "RESULT":
         return chunk_result_document(text)
 
-    return [{
-        "text": text.strip(),
-        "subject_json": None
-    }]
+    return chunk_general_document(text)
 
 
 # =====================================================
