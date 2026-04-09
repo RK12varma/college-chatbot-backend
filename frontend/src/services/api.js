@@ -1,90 +1,47 @@
 import axios from "axios";
 
-/*
-|--------------------------------------------------------------------------
-| Axios Instance
-|--------------------------------------------------------------------------
-| Centralized API configuration
-| All requests automatically use this baseURL
-*/
-
 const API = axios.create({
   baseURL: "http://127.0.0.1:8000",
 });
 
-
-/*
-|--------------------------------------------------------------------------
-| Request Interceptor
-|--------------------------------------------------------------------------
-| Automatically attaches JWT token if available
-*/
-
+// ── Request interceptor — attach access token ──────────────────────────────
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
-  (error) => {
+  (error) => Promise.reject(error)
+);
+
+// ── Response interceptor — auto-refresh on 401 ────────────────────────────
+API.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && !original._retry) {
+      original._retry = true;
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (refreshToken) {
+        try {
+          const res = await axios.post("http://127.0.0.1:8000/auth/refresh", {
+            refresh_token: refreshToken,
+          });
+          const newToken = res.data.access_token;
+          localStorage.setItem("token", newToken);
+          original.headers.Authorization = `Bearer ${newToken}`;
+          return API(original);
+        } catch {
+          localStorage.clear();
+          window.location.href = "/login";
+        }
+      } else {
+        localStorage.clear();
+        window.location.href = "/login";
+      }
+    }
     return Promise.reject(error);
   }
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| AUTH APIs
-|--------------------------------------------------------------------------
-*/
-
-export const registerUser = (data) => {
-  return API.post("/auth/register", data);
-};
-
-export const loginUser = (data) => {
-  return API.post("/auth/login", data);
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| CHAT API
-|--------------------------------------------------------------------------
-*/
-
-export const askQuestion = (question) => {
-  return API.post("/chat/ask", { question });
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| ADMIN APIs (Optional but Recommended)
-|--------------------------------------------------------------------------
-*/
-
-export const getAdminSources = () => {
-  return API.get("/admin/sources");
-};
-
-export const addAdminSource = (data) => {
-  return API.post("/admin/sources", data);
-};
-
-export const deleteAdminSource = (id) => {
-  return API.delete(`/admin/sources/${id}`);
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| Export Default
-|--------------------------------------------------------------------------
-*/
 
 export default API;

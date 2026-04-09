@@ -1,228 +1,211 @@
-# College Chatbot Backend
+# CollegeAI Chatbot
 
-## Introduction
+CollegeAI is a full-stack college assistant focused on the Data Science department. This repository contains the React frontend and the FastAPI backend used for authentication, chat, document search, question-paper access, and admin operations.
 
-The College Chatbot Backend is a Node.js application designed to provide automated responses and support for college-related queries. It manages user interactions, authentication, and integrates with OpenAI’s services for natural language responses. The backend supports user registration, login, and persistent chat history, making it suitable for deployment as the foundation of a college assistance chatbot.
+## Repository Overview
 
-## Features
+This workspace currently contains:
 
-- User registration and secure authentication
-- JWT-based session management
-- Chat interface with persistent message history
-- Integration with OpenAI’s GPT models for generating answers
-- REST API endpoints for chat and user management
-- CORS support for client applications
-- MongoDB database integration for storing users and messages
+- `frontend/` - React + Vite frontend
+- `backend2/` - FastAPI backend
+- `.env.example` - Example environment configuration
 
-## Installation
+## Architecture
 
-To set up the backend locally, follow these steps:
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/RK12varma/college-chatbot-backend.git
-   cd college-chatbot-backend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up the required environment variables. Create a `.env` file in the root directory with the following keys:
-   ```
-   PORT=5000
-   MONGO_URL=your-mongodb-connection-string
-   JWT_SECRET=your-secret-key
-   OPENAI_API_KEY=your-openai-api-key
-   ```
-
-4. Start the server:
-   ```bash
-   npm start
-   ```
-
-The server will run on the port specified in the `.env` file.
-
-## Requirements
-
-- Node.js (version 14 or higher)
-- npm (Node Package Manager)
-- MongoDB instance (local or cloud)
-- OpenAI API key
-
-## Usage
-
-Once installed and running, the backend exposes several REST API endpoints to manage users and chat functionality.
-
-### User Flow
-
-- Register a new account via the registration endpoint.
-- Log in using the login endpoint to receive a JWT token.
-- Use the token to authenticate and send chat messages.
-- Retrieve past chat history.
-
-### API Endpoints
-
-#### User Registration (POST /api/register)
-Registers a new user with a username and password.
-
-```api
-{
-    "title": "User Registration",
-    "description": "Register a new user with username and password",
-    "method": "POST",
-    "baseUrl": "http://localhost:5000",
-    "endpoint": "/api/register",
-    "headers": [
-        {
-            "key": "Content-Type",
-            "value": "application/json",
-            "required": true
-        }
-    ],
-    "queryParams": [],
-    "pathParams": [],
-    "bodyType": "json",
-    "requestBody": "{\n  \"username\": \"john_doe\",\n  \"password\": \"securePassword123\"\n}",
-    "responses": {
-        "201": {
-            "description": "User registered successfully",
-            "body": "{\n  \"message\": \"User registered successfully\"\n}"
-        },
-        "400": {
-            "description": "User already exists",
-            "body": "{\n  \"error\": \"User already exists\"\n}"
-        }
-    }
-}
+```text
+frontend (React + Vite)
+        |
+        | HTTP API
+        v
+backend2 (FastAPI)
+        |
+        | Database, document indexing, OCR, scraping, LLM integration
+        v
+PostgreSQL / vector search / external services
 ```
 
-#### User Login (POST /api/login)
-Authenticates a user and returns a JWT token.
+## Main Features
 
-```api
-{
-    "title": "User Login",
-    "description": "Authenticate user and return JWT token",
-    "method": "POST",
-    "baseUrl": "http://localhost:5000",
-    "endpoint": "/api/login",
-    "headers": [
-        {
-            "key": "Content-Type",
-            "value": "application/json",
-            "required": true
-        }
-    ],
-    "queryParams": [],
-    "pathParams": [],
-    "bodyType": "json",
-    "requestBody": "{\n  \"username\": \"john_doe\",\n  \"password\": \"securePassword123\"\n}",
-    "responses": {
-        "200": {
-            "description": "Login successful, JWT token returned",
-            "body": "{\n  \"token\": \"<jwt-token>\"\n}"
-        },
-        "400": {
-            "description": "Invalid credentials",
-            "body": "{\n  \"error\": \"Invalid username or password\"\n}"
-        }
-    }
-}
+- Student and admin authentication with JWT
+- OTP verification and password reset flows
+- Department-focused AI chatbot interface
+- Persistent chat sessions
+- PDF and document search support
+- Admin dashboard for:
+  - Document upload and indexing
+  - URL scraping
+  - User management
+  - Audit logs
+  - System statistics
+- Optional web search support through backend providers
+
+## Tech Stack
+
+### Frontend
+
+- React 19
+- Vite 5
+- React Router
+- Axios
+- Tailwind CSS
+
+### Backend
+
+- FastAPI
+- SQLAlchemy
+- PostgreSQL-compatible database
+- FAISS for semantic search
+- OCR and scraping utilities
+- LLM integration through configured providers
+
+## Project Structure
+
+```text
+sem6/
+|-- frontend/        React frontend application
+|-- backend2/        FastAPI backend application
+|-- .env.example     Shared example environment file
+|-- .gitignore
+`-- README.md
 ```
 
-#### Send Chat Message (POST /api/chat)
-Send a message to the chatbot and receive a response.
+## Quick Start
 
-```api
-{
-    "title": "Send Chat Message",
-    "description": "Send a message and receive a chatbot response",
-    "method": "POST",
-    "baseUrl": "http://localhost:5000",
-    "endpoint": "/api/chat",
-    "headers": [
-        {
-            "key": "Authorization",
-            "value": "Bearer <jwt-token>",
-            "required": true
-        },
-        {
-            "key": "Content-Type",
-            "value": "application/json",
-            "required": true
-        }
-    ],
-    "queryParams": [],
-    "pathParams": [],
-    "bodyType": "json",
-    "requestBody": "{\n  \"message\": \"What courses are offered in Computer Science?\"\n}",
-    "responses": {
-        "200": {
-            "description": "Chatbot response returned",
-            "body": "{\n  \"response\": \"The Computer Science department offers various undergraduate and postgraduate courses including...\"\n}"
-        },
-        "401": {
-            "description": "Unauthorized access",
-            "body": "{\n  \"error\": \"Unauthorized\"\n}"
-        }
-    }
-}
+### 1. Clone the repository
+
+```bash
+git clone <your-repository-url>
+cd sem6
 ```
 
-#### Get Chat History (GET /api/messages)
-Retrieve the user’s chat history.
+### 2. Configure environment variables
 
-```api
-{
-    "title": "Get Chat History",
-    "description": "Retrieve the authenticated user's chat history",
-    "method": "GET",
-    "baseUrl": "http://localhost:5000",
-    "endpoint": "/api/messages",
-    "headers": [
-        {
-            "key": "Authorization",
-            "value": "Bearer <jwt-token>",
-            "required": true
-        }
-    ],
-    "queryParams": [],
-    "pathParams": [],
-    "bodyType": "none",
-    "requestBody": "",
-    "responses": {
-        "200": {
-            "description": "Chat history returned",
-            "body": "{\n  \"messages\": [\n    { \"message\": \"Hi\", \"role\": \"user\" },\n    { \"message\": \"Hello! How can I help you today?\", \"role\": \"bot\" }\n  ]\n}"
-        },
-        "401": {
-            "description": "Unauthorized access",
-            "body": "{\n  \"error\": \"Unauthorized\"\n}"
-        }
-    }
-}
+Use the root example file as a reference:
+
+```bash
+cp .env.example backend2/.env
 ```
 
-## Configuration
+On Windows PowerShell, you can use:
 
-Configuration is managed through environment variables. The following variables must be set:
-
-- `PORT`: The port on which the server runs (default: 5000).
-- `MONGO_URL`: MongoDB connection string.
-- `JWT_SECRET`: Secret key for JWT signing.
-- `OPENAI_API_KEY`: API key for OpenAI integration.
-
-These can be set in a `.env` file in the project root. Example:
-
-```
-PORT=5000
-MONGO_URL=mongodb://localhost:27017/college-chatbot
-JWT_SECRET=my-secret-key
-OPENAI_API_KEY=your-openai-key
+```powershell
+Copy-Item .env.example backend2/.env
 ```
 
----
+Then update the values in `backend2/.env` for your machine, especially:
 
-For support or contributions, please refer to the repository issues or submit a pull request.
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `ADMIN_SECRET_KEY`
+- `EMAIL_ADDRESS`
+- `EMAIL_PASSWORD`
+- `GROQ_API_KEY` or other LLM-related keys
+- `SERPAPI_KEY` and `BRAVE_API_KEY` if web search is enabled
+
+### 3. Start the backend
+
+```bash
+cd backend2
+python -m venv venv
+```
+
+Activate the environment:
+
+```powershell
+venv\Scripts\activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the backend server:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The backend usually runs at:
+
+```text
+http://127.0.0.1:8000
+```
+
+### 4. Start the frontend
+
+Open a new terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend usually runs at:
+
+```text
+http://localhost:5173
+```
+
+## Important Setup Note
+
+The root `.env.example` includes a `VITE_API_URL` variable, but the current frontend code still uses a hardcoded API base URL in `frontend/src/services/api.js`.
+
+Right now, the frontend expects the backend at:
+
+```text
+http://127.0.0.1:8000
+```
+
+If your backend is running elsewhere, update `frontend/src/services/api.js` before starting the frontend.
+
+## Running Each Part Separately
+
+### Frontend only
+
+See `frontend/README.md` for frontend routes, scripts, and UI details.
+
+### Backend only
+
+See `backend2/README.md` for backend endpoints, services, and deployment notes.
+
+## Typical Local Development Flow
+
+1. Configure `backend2/.env`.
+2. Start the backend with `uvicorn app.main:app --reload` from `backend2`.
+3. Start the frontend with `npm run dev` from `frontend`.
+4. Open `http://localhost:5173`.
+5. Register a user or log in.
+6. Use an admin account to access `/admin`.
+
+## Useful Paths
+
+- Frontend entry: `frontend/src/main.jsx`
+- Frontend routes: `frontend/src/App.jsx`
+- Frontend API client: `frontend/src/services/api.js`
+- Backend entry: `backend2/app/main.py`
+- Backend config: `backend2/app/config.py`
+
+## Common Requirements
+
+- Node.js 18+
+- npm
+- Python 3.10+
+- A configured database
+- API keys and email settings required by the backend
+
+## Documentation Notes
+
+This root README is meant to help new contributors understand the full project quickly. More detailed instructions live in the service-specific READMEs:
+
+- `frontend/README.md`
+- `backend2/README.md`
+
+## Future Improvements
+
+- Move the frontend API URL fully to `VITE_API_URL`
+- Add database setup and migration instructions
+- Add screenshots for the chat and admin flows
+- Add test and deployment instructions at the root level

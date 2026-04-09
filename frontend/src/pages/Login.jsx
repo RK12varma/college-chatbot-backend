@@ -5,7 +5,6 @@ import Navbar from "../components/Navbar";
 
 export default function Login() {
   const navigate = useNavigate();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -16,24 +15,21 @@ export default function Login() {
       alert("Please enter email and password");
       return;
     }
-
     setLoading(true);
-
     try {
       const res = await API.post("/auth/login", { email, password });
 
-      const token = res.data.access_token;
-      localStorage.setItem("token", token);
+      // v2: save both tokens + role
+      localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("refresh_token", res.data.refresh_token);
+      localStorage.setItem("role", res.data.role);
+      localStorage.setItem("department", res.data.department || "");
 
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const role = payload.role;
-
-      if (role === "admin") {
+      if (res.data.role === "admin") {
         navigate("/admin");
       } else {
         navigate("/chat");
       }
-
     } catch (err) {
       alert(err.response?.data?.detail || "Login failed");
     } finally {
@@ -41,31 +37,20 @@ export default function Login() {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
-
   return (
     <>
       <Navbar />
-
       <div className="min-h-screen pt-24 flex items-center justify-center bg-gradient-to-br from-sky-200 via-sky-300 to-blue-400 relative overflow-hidden">
-
-        <div className="absolute w-96 h-96 bg-white opacity-20 rounded-full blur-3xl top-10 left-10"></div>
-        <div className="absolute w-96 h-96 bg-white opacity-20 rounded-full blur-3xl bottom-10 right-10"></div>
+        <div className="absolute w-96 h-96 bg-white opacity-20 rounded-full blur-3xl top-10 left-10" />
+        <div className="absolute w-96 h-96 bg-white opacity-20 rounded-full blur-3xl bottom-10 right-10" />
 
         <div className="relative backdrop-blur-xl bg-white/30 border border-white/40 shadow-2xl rounded-3xl p-10 w-96">
-
           <div className="flex justify-center mb-6">
-            <div className="bg-white shadow-md p-3 rounded-xl">
-              🔐
-            </div>
+            <div className="bg-white shadow-md p-3 rounded-xl">🔐</div>
           </div>
-
           <h2 className="text-2xl font-semibold text-center text-gray-800 mb-2">
             Sign in with email
           </h2>
-
           <p className="text-center text-gray-600 text-sm mb-6">
             Login to Saraswati College Portal
           </p>
@@ -76,7 +61,7 @@ export default function Login() {
             className="w-full p-3 mb-4 bg-white/60 text-gray-800 border border-white rounded-xl placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={handleKeyPress}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           />
 
           <div className="relative mb-4">
@@ -86,9 +71,8 @@ export default function Login() {
               className="w-full p-3 bg-white/60 text-gray-800 border border-white rounded-xl placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none pr-16"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={handleKeyPress}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             />
-
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
@@ -113,12 +97,11 @@ export default function Login() {
           </button>
 
           <p className="mt-6 text-center text-sm text-gray-700">
-            Don’t have an account?{" "}
+            Don't have an account?{" "}
             <Link to="/register" className="text-blue-700 font-medium hover:underline">
               Create account
             </Link>
           </p>
-
         </div>
       </div>
     </>
