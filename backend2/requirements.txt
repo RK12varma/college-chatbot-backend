@@ -1,0 +1,50 @@
+# ─── Server ───────────────────────────────────────────────────────────────────
+uvicorn[standard]
+fastapi
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+sqlalchemy
+psycopg2-binary
+alembic
+
+# ─── Auth / Security ──────────────────────────────────────────────────────────
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# ─── Config / Env ─────────────────────────────────────────────────────────────
+python-dotenv
+
+# ─── Email ────────────────────────────────────────────────────────────────────
+email-validator
+
+# ─── Scheduler ────────────────────────────────────────────────────────────────
+apscheduler
+
+# ─── Web Scraping ─────────────────────────────────────────────────────────────
+requests
+beautifulsoup4
+lxml
+
+# ─── AI / Embeddings ──────────────────────────────────────────────────────────
+sentence-transformers
+faiss-cpu
+numpy
+groq
+
+# ─── Document Processing ──────────────────────────────────────────────────────
+pdfplumber
+pytesseract
+pdf2image
+python-docx
+Pillow
+
+# ─── Advanced OCR (optional fallback engine) ──────────────────────────────────
+# easyocr             # uncomment to enable EasyOCR fallback
+
+# ─── Hybrid Search ────────────────────────────────────────────────────────────
+scikit-learn
+
+aiohttp>=3.8.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0  
